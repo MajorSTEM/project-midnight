@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Radiation, Trash2, Globe, Crosshair, FolderOpen, Download, BookOpen, Bell, Brain, Camera } from 'lucide-react';
+import { Menu, X, Radiation, Trash2, Globe, Crosshair, FolderOpen, Download, BookOpen, Bell, Brain, Camera, Settings } from 'lucide-react';
 import { DoomsdayClock } from './DoomsdayClock';
 import { useSimulationStore } from '../../stores/simulationStore';
+import { ApiKeysPanel } from '../Settings/ApiKeysPanel';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -36,6 +37,7 @@ export const TopBar: React.FC = () => {
 
   const hasResults = result !== null || aggregateResult !== null;
 
+  const [showSettings, setShowSettings] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
   useEffect(() => {
     const handler = (e: Event) => {
@@ -54,6 +56,7 @@ export const TopBar: React.FC = () => {
   }
 
   return (
+    <>
     <header className="fixed top-0 left-0 right-0 z-[1000] h-14 bg-panel border-b border-panel-border flex items-center justify-between px-4 gap-2">
       {/* Left — toggle + logo */}
       <div className="flex items-center gap-3 min-w-0">
@@ -234,6 +237,16 @@ export const TopBar: React.FC = () => {
           <span className="hidden lg:inline">AR</span>
         </button>
 
+        {/* Settings */}
+        <button
+          onClick={() => setShowSettings(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono bg-panel-light border border-panel-border text-text-muted hover:text-terminal hover:border-terminal/40 rounded transition-colors"
+          title="API Keys & Settings"
+        >
+          <Settings size={13} />
+          <span className="hidden lg:inline">SETTINGS</span>
+        </button>
+
         {/* Notification bell */}
         <button
           onClick={toggleNotificationCenter}
@@ -286,5 +299,8 @@ export const TopBar: React.FC = () => {
         </div>
       </div>
     </header>
+
+    {showSettings && <ApiKeysPanel onClose={() => setShowSettings(false)} />}
+  </>
   );
 };

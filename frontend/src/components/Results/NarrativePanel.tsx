@@ -1,5 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useSimulationStore } from '../../stores/simulationStore';
+import { streamNarrative } from '../../utils/directApi';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 type NarrativeType = 'aftermath' | 'journal' | 'geopolitical';
 
@@ -37,7 +39,6 @@ export const NarrativePanel: React.FC = () => {
     setProgress(0);
     setStreaming(true);
 
-    // Fake progress bar that fills slowly until done
     let fakeProgress = 0;
     progressIntervalRef.current = setInterval(() => {
       fakeProgress = Math.min(fakeProgress + Math.random() * 2, 92);
@@ -46,63 +47,22 @@ export const NarrativePanel: React.FC = () => {
 
     abortRef.current = new AbortController();
 
-    try {
-      const response = await fetch('http://localhost:7001/api/narrative', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: abortRef.current.signal,
-        body: JSON.stringify({
-          type: simulationMode,
-          narrativeType,
-          locationName,
-          config: result?.effects
-            ? {
-                yieldKt: result.effects.yieldKt,
-                burstType: result.effects.burstType,
-              }
-            : {},
-        }),
-      });
-
-      if (!response.ok || !response.body) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { value, done: readerDone } = await reader.read();
-        if (readerDone) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const chunk = line.slice(6);
-          if (chunk === '[DONE]') {
-            setProgress(100);
-            setDone(true);
-            break;
-          }
-          textRef.current += chunk;
-          setText(textRef.current);
-        }
-      }
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        console.error('[NarrativePanel] stream error:', err);
-        setText('Error generating narrative. Please ensure the backend is running on port 7001.');
-      }
-    } finally {
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-      setProgress(100);
-      setStreaming(false);
-      setDone(true);
-    }
+    await streamNarrative(
+      {
+        type: simulationMode,
+        narrativeType,
+        locationName,
+        config: result?.effects ? { yieldKt: result.effects.yieldKt, burstType: result.effects.burstType } : {},
+      },
+      (chunk) => { textRef.current += chunk; setText(textRef.current); },
+      () => {
+        if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+        setProgress(100);
+        setStreaming(false);
+        setDone(true);
+      },
+      abortRef.current.signal,
+    );
   }, [streaming, simulationMode, narrativeType, locationName, result]);
 
   const handleCopy = useCallback(async () => {
@@ -159,17 +119,19 @@ export const NarrativePanel: React.FC = () => {
       </div>
 
       {/* No API key info banner */}
-      <div
-        className="rounded border px-3 py-2 flex items-center gap-2"
-        style={{ borderColor: '#ffbb00' + '30', background: '#ffbb00' + '06' }}
-      >
-        <span className="text-xs">ℹ️</span>
-        <p className="font-mono text-[10px]" style={{ color: '#8b949e' }}>
-          Configure <span style={{ color: '#ffbb00' }}>ANTHROPIC_API_KEY</span> in{' '}
-          <span style={{ color: '#e6edf3' }}>backend/.env</span> for live AI narratives.
-          Without it, high-quality pre-written content is served.
-        </p>
-      </div>
+      {!useSettingsStore.getState().hasAiKey() && (
+        <div
+          className="rounded border px-3 py-2 flex items-center gap-2"
+          style={{ borderColor: '#ffbb00' + '30', background: '#ffbb00' + '06' }}
+        >
+          <span className="text-xs">ℹ️</span>
+          <p className="font-mono text-[10px]" style={{ color: '#8b949e' }}>
+            Add a <span style={{ color: '#ffbb00' }}>Claude or OpenAI API key</span> in{' '}
+            <span style={{ color: '#e6edf3' }}>Settings ⚙</span> for live AI narratives.
+            Without it, high-quality pre-written content is served.
+          </p>
+        </div>
+      )}
 
       {/* Narrative type tabs */}
       <div

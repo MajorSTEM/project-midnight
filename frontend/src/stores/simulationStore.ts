@@ -160,7 +160,8 @@ function computeStrikeResult(strike: StrikeConfig): SimulationResult | null {
   };
 }
 
-const API_BASE = 'http://localhost:7001';
+// Direct API calls — no backend required
+import { fetchWeatherDirect, fetchNewsDirect, fetchFemaDirect } from '../utils/directApi';
 
 export const useSimulationStore = create<SimulationStore>((set, get) => ({
   config: defaultConfig,
@@ -401,13 +402,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   fetchLiveWind: async (lat: number, lng: number) => {
     try {
-      const res = await fetch(`${API_BASE}/weather?lat=${lat}&lng=${lng}`);
-      if (!res.ok) throw new Error(`Weather API returned ${res.status}`);
-      const data = await res.json() as {
-        windSpeedKmh: number;
-        windDirectionDeg: number;
-        source: string;
-      };
+      const data = await fetchWeatherDirect(lat, lng);
       const source = data.source === 'noaa-nws' ? 'noaa' : 'default';
       const liveWind = {
         speedKmh: data.windSpeedKmh ?? 30,
@@ -416,13 +411,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       };
       set((state) => ({
         liveWind,
-        config: {
-          ...state.config,
-          windDirection: liveWind.directionDeg,
-          windSpeed: liveWind.speedKmh,
-        },
+        config: { ...state.config, windDirection: liveWind.directionDeg, windSpeed: liveWind.speedKmh },
       }));
-      // Re-run simulation with updated wind
       setTimeout(() => get().runSimulation(), 0);
     } catch (err) {
       console.error('[fetchLiveWind] Error:', err);
@@ -431,61 +421,42 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   fetchEscalation: async () => {
     try {
-      const [nucRes, geoRes] = await Promise.allSettled([
-        fetch(`${API_BASE}/news/nuclear`),
-        fetch(`${API_BASE}/news/geopolitical`),
+      const [nuc, geo] = await Promise.allSettled([
+        fetchNewsDirect('nuclear weapons missile threat'),
+        fetchNewsDirect('NATO Russia China military escalation'),
       ]);
 
       let combinedArticles: EscalationData['articles'] = [];
       let maxScore = 0;
 
-      if (nucRes.status === 'fulfilled' && nucRes.value.ok) {
-        const nucData = await nucRes.value.json() as EscalationData;
-        combinedArticles = [...combinedArticles, ...(nucData.articles || [])];
-        if (nucData.score > maxScore) maxScore = nucData.score;
+      if (nuc.status === 'fulfilled') {
+        combinedArticles = [...combinedArticles, ...(nuc.value.articles || [])];
+        if (nuc.value.score > maxScore) maxScore = nuc.value.score;
+      }
+      if (geo.status === 'fulfilled') {
+        combinedArticles = [...combinedArticles, ...(geo.value.articles || [])];
+        if (geo.value.score > maxScore) maxScore = geo.value.score;
       }
 
-      if (geoRes.status === 'fulfilled' && geoRes.value.ok) {
-        const geoData = await geoRes.value.json() as EscalationData;
-        combinedArticles = [...combinedArticles, ...(geoData.articles || [])];
-        if (geoData.score > maxScore) maxScore = geoData.score;
-      }
-
-      // Deduplicate by url
       const seen = new Set<string>();
-      const unique = combinedArticles.filter((a) => {
-        if (seen.has(a.url)) return false;
-        seen.add(a.url);
-        return true;
-      });
-
+      const unique = combinedArticles.filter((a) => { if (seen.has(a.url)) return false; seen.add(a.url); return true; });
       const finalScore = Math.min(100, maxScore);
       let level: EscalationData['level'] = 'LOW';
       if (finalScore > 80) level = 'CRITICAL';
       else if (finalScore > 60) level = 'HIGH';
       else if (finalScore > 30) level = 'ELEVATED';
 
-      set({
-        escalationData: {
-          score: finalScore,
-          level,
-          articles: unique.slice(0, 8),
-          lastUpdated: new Date().toISOString(),
-        },
-      });
+      set({ escalationData: { score: finalScore, level, articles: unique.slice(0, 8), lastUpdated: new Date().toISOString() } });
     } catch (err) {
       console.error('[fetchEscalation] Error:', err);
     }
   },
 
   loadFEMADisasters: async () => {
-    // Skip if already loaded
     if (get().femaDisasters !== null) return;
     try {
-      const res = await fetch(`${API_BASE}/fema/disasters/recent?top=20`);
-      if (!res.ok) throw new Error(`FEMA API returned ${res.status}`);
-      const data = await res.json() as { disasters: FEMADisaster[] };
-      set({ femaDisasters: data.disasters || [] });
+      const data = await fetchFemaDirect('/v2/DisasterDeclarationsSummaries?$orderby=declarationDate%20desc&$top=20') as { DisasterDeclarationsSummaries: FEMADisaster[] } | null;
+      set({ femaDisasters: data?.DisasterDeclarationsSummaries || [] });
     } catch (err) {
       console.error('[loadFEMADisasters] Error:', err);
       set({ femaDisasters: [] });
@@ -494,10 +465,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   fetchIPAWSAlerts: async (state: string) => {
     try {
-      const res = await fetch(`${API_BASE}/fema/alerts?state=${encodeURIComponent(state)}&top=10`);
-      if (!res.ok) throw new Error(`IPAWS API returned ${res.status}`);
-      const data = await res.json() as { alerts: IPAWSAlert[] };
-      set({ ipawsAlerts: data.alerts || [] });
+      const data = await fetchFemaDirect(`/v1/IpawsArchivedAlerts?$top=10&$orderby=sent%20desc&$filter=contains(areaDesc,'${encodeURIComponent(state)}')`) as { IpawsArchivedAlerts: IPAWSAlert[] } | null;
+      set({ ipawsAlerts: data?.IpawsArchivedAlerts || [] });
     } catch (err) {
       console.error('[fetchIPAWSAlerts] Error:', err);
       set({ ipawsAlerts: [] });

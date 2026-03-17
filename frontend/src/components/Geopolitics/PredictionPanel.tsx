@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
+import { streamPrediction } from '../../utils/directApi';
 
 type Timeframe = '30d' | '90d' | '180d';
 type Focus = 'nuclear' | 'conflict' | 'combined';
@@ -70,56 +71,19 @@ export const PredictionPanel: React.FC<PredictionPanelProps> = ({ isOpen, onClos
 
     abortRef.current = new AbortController();
 
-    try {
-      const response = await fetch('http://localhost:7001/api/prediction', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: abortRef.current.signal,
-        body: JSON.stringify({ timeframe, focus }),
-      });
-
-      if (!response.ok || !response.body) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { value, done: readerDone } = await reader.read();
-        if (readerDone) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const chunk = line.slice(6);
-          if (chunk === '[DONE]') {
-            setDone(true);
-            break;
-          }
-          textRef.current += chunk;
-          setText(textRef.current);
-
-          // Parse risk score and level as they appear in the stream
-          const score = parseRiskScore(textRef.current);
-          if (score !== null) setRiskScore(score);
-          const level = parseRiskLevel(textRef.current);
-          if (level !== null) setRiskLevel(level);
-        }
-      }
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        console.error('[PredictionPanel] stream error:', err);
-        setText('Error generating forecast. Please ensure the backend is running on port 7001.');
-      }
-    } finally {
-      setStreaming(false);
-      setDone(true);
-    }
+    await streamPrediction(
+      { timeframe, focus },
+      (chunk) => {
+        textRef.current += chunk;
+        setText(textRef.current);
+        const score = parseRiskScore(textRef.current);
+        if (score !== null) setRiskScore(score);
+        const level = parseRiskLevel(textRef.current);
+        if (level !== null) setRiskLevel(level);
+      },
+      () => { setStreaming(false); setDone(true); },
+      abortRef.current.signal,
+    );
   }, [streaming, timeframe, focus]);
 
   const handleCopy = useCallback(async () => {

@@ -71,7 +71,7 @@ const STATE_NAMES: Record<string, string> = {
   WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
 };
 
-const API_BASE = 'http://localhost:7001';
+// Direct FEMA API — no backend required
 
 const SHELTER_GREEN = '#00ff88';
 
@@ -272,10 +272,10 @@ export const FEMAShelterLayer: React.FC = () => {
     if (!visible && !fetchedRef.current) {
       setLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/fema/disasters/recent?top=20`);
+        const res = await fetch('https://www.fema.gov/api/open/v2/DisasterDeclarationsSummaries?$orderby=declarationDate%20desc&$top=20', { headers: { Accept: 'application/json' } });
         if (!res.ok) throw new Error(`FEMA API returned ${res.status}`);
-        const data = await res.json() as { disasters: FEMADisaster[] };
-        const disasters: FEMADisaster[] = data.disasters ?? [];
+        const data = await res.json() as { DisasterDeclarationsSummaries: FEMADisaster[] };
+        const disasters: FEMADisaster[] = data.DisasterDeclarationsSummaries ?? [];
         setShelters(buildShelterPoints(disasters));
         fetchedRef.current = true;
       } catch (err) {
