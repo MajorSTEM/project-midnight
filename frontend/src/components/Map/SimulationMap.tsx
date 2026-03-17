@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { BlastRings } from './BlastRings';
 import { FalloutPlume } from './FalloutPlume';
 import { FEMADisasterLayer } from './FEMADisasterLayer';
+import { FEMAShelterLayer } from './FEMAShelterLayer';
 import { MapModeToggle } from './MapModeToggle';
 import { CesiumView } from './CesiumView';
 import { ZombieMapLayer } from '../Zombie/ZombieMapLayer';
@@ -317,6 +318,9 @@ const LeafletMap: React.FC<{ simulationMode: string; mapStyle: MapStyle }> = ({ 
 
         {/* FEMA Disaster overlay */}
         <FEMADisasterLayer />
+
+        {/* FEMA Shelter overlay */}
+        <FEMAShelterLayer />
       </MapContainer>
 
       {/* FEMA layer toggle button */}

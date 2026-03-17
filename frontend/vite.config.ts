@@ -7,6 +7,7 @@ import path from 'path'
 const cesiumBuildRoot = path.resolve(__dirname, '../node_modules/cesium/Build')
 
 export default defineConfig({
+  base: './',
   plugins: [
     react(),
     cesium({
