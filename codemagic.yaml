@@ -1,0 +1,108 @@
+workflows:
+  ios-app-store:
+    name: iOS App Store Build
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    integrations:
+      app_store_connect: codemagic_api_key  # set in Codemagic dashboard
+
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.majystem.projectmidnight
+      vars:
+        BUNDLE_ID: com.majystem.projectmidnight
+        XCODE_PROJECT: App.xcodeproj
+        XCODE_SCHEME: App
+
+    scripts:
+      - name: Install frontend dependencies
+        script: |
+          cd frontend
+          npm ci
+
+      - name: Build Vite bundle
+        script: |
+          cd frontend
+          npm run build
+
+      - name: Install Capacitor CLI
+        script: |
+          cd frontend
+          npx cap sync ios
+
+      - name: Set iOS version numbers
+        script: |
+          cd frontend/ios/App
+          LATEST_BUILD=$(app-store-connect get-latest-build-number "$BUNDLE_ID" 2>/dev/null || echo "0")
+          BUILD_NUMBER=$((LATEST_BUILD + 1))
+          agvtool new-version -all "$BUILD_NUMBER"
+          agvtool new-marketing-version "1.0.0"
+
+      - name: Build and archive for App Store
+        script: |
+          cd frontend/ios
+          xcode-project use-profiles
+          xcodebuild \
+            -project App/$XCODE_PROJECT \
+            -scheme $XCODE_SCHEME \
+            -configuration Release \
+            -archivePath build/App.xcarchive \
+            archive \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
+
+      - name: Export IPA
+        script: |
+          cd frontend/ios
+          xcode-project build-ipa \
+            --project App/$XCODE_PROJECT \
+            --scheme $XCODE_SCHEME
+
+    artifacts:
+      - frontend/ios/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        submit_to_app_store: false   # flip to true when ready for full release
+        beta_groups:
+          - External Testers
+
+  ios-device-test:
+    name: iOS Ad Hoc (Device Testing)
+    max_build_duration: 45
+    instance_type: mac_mini_m2
+
+    environment:
+      ios_signing:
+        distribution_type: ad_hoc
+        bundle_identifier: com.majystem.projectmidnight
+
+    scripts:
+      - name: Install and build
+        script: |
+          cd frontend
+          npm ci && npm run build && npx cap sync ios
+
+      - name: Build Ad Hoc IPA
+        script: |
+          cd frontend/ios
+          xcode-project use-profiles
+          xcode-project build-ipa \
+            --project App/$XCODE_PROJECT \
+            --scheme App
+
+    artifacts:
+      - frontend/ios/build/ios/ipa/*.ipa
+
+    publishing:
+      email:
+        recipients:
+          - i1695@outlook.com
+        notify:
+          success: true
+          failure: true

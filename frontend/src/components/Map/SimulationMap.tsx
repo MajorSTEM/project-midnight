@@ -231,7 +231,7 @@ const LeafletMap: React.FC<{ simulationMode: string; mapStyle: MapStyle }> = ({ 
         />
 
         {/* IR thermal filter applied directly to the Leaflet tile pane */}
-        <TilePaneFilter active={effectiveStyle === 'ir'} />
+        <TilePaneFilter active={effectiveStyle === 'flir'} />
 
         <MapClickHandler />
         <MapPanController />

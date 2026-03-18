@@ -50,7 +50,7 @@ export async function fetchWeatherDirect(lat: number, lng: number): Promise<{
 export async function fetchNewsDirect(query: string): Promise<{
   score: number;
   level: string;
-  articles: Array<{ title: string; description: string; url: string; source: { name: string }; publishedAt: string }>;
+  articles: Array<{ title: string; description: string; url: string; source: { name: string; url: string }; publishedAt: string }>;
 }> {
   const { gnewsApiKey } = useSettingsStore.getState();
   if (!gnewsApiKey) return { score: 0, level: 'LOW', articles: [] };
@@ -59,7 +59,7 @@ export async function fetchNewsDirect(query: string): Promise<{
     const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&token=${gnewsApiKey}&lang=en&max=10&in=title,description`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`GNews ${res.status}`);
-    const data = await res.json() as { articles: Array<{ title: string; description: string; url: string; source: { name: string }; publishedAt: string }> };
+    const data = await res.json() as { articles: Array<{ title: string; description: string; url: string; source: { name: string; url: string }; publishedAt: string }> };
     const articles = data.articles || [];
 
     const highRisk = ['nuclear', 'warhead', 'missile launch', 'icbm'];
