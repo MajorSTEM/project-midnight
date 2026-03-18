@@ -2,6 +2,8 @@ import React, { useState, useRef, useCallback } from 'react';
 import { useSimulationStore } from '../../stores/simulationStore';
 import { streamNarrative } from '../../utils/directApi';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { usePurchaseStore } from '../../stores/purchaseStore';
+import { PaywallModal } from '../Settings/PaywallModal';
 
 type NarrativeType = 'aftermath' | 'journal' | 'geopolitical';
 
@@ -13,6 +15,8 @@ const NARRATIVE_TABS: { id: NarrativeType; label: string }[] = [
 
 export const NarrativePanel: React.FC = () => {
   const { result, config, simulationMode } = useSimulationStore();
+  const { aiUnlocked } = usePurchaseStore();
+  const [showPaywall, setShowPaywall] = useState(false);
   const [narrativeType, setNarrativeType] = useState<NarrativeType>('aftermath');
   const [text, setText] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -88,6 +92,7 @@ export const NarrativePanel: React.FC = () => {
   };
 
   return (
+    <>
     <div className="space-y-3 pb-6">
       {/* Header */}
       <div
@@ -156,7 +161,7 @@ export const NarrativePanel: React.FC = () => {
 
       {/* Generate button */}
       <button
-        onClick={handleGenerate}
+        onClick={aiUnlocked ? handleGenerate : () => setShowPaywall(true)}
         className="w-full py-2.5 rounded border font-mono font-bold text-xs uppercase tracking-wider transition-all"
         style={
           streaming
@@ -274,5 +279,13 @@ export const NarrativePanel: React.FC = () => {
         </div>
       )}
     </div>
+
+    {showPaywall && (
+      <PaywallModal
+        onClose={() => setShowPaywall(false)}
+        onUnlocked={() => setShowPaywall(false)}
+      />
+    )}
+  </>
   );
 };

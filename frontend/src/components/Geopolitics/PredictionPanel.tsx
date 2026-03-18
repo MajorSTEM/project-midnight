@@ -1,5 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { streamPrediction } from '../../utils/directApi';
+import { usePurchaseStore } from '../../stores/purchaseStore';
+import { PaywallModal } from '../Settings/PaywallModal';
 
 type Timeframe = '30d' | '90d' | '180d';
 type Focus = 'nuclear' | 'conflict' | 'combined';
@@ -53,6 +55,8 @@ export const PredictionPanel: React.FC<PredictionPanelProps> = ({ isOpen, onClos
   const [riskScore, setRiskScore] = useState<number | null>(null);
   const [riskLevel, setRiskLevel] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const { aiUnlocked } = usePurchaseStore();
   const abortRef = useRef<AbortController | null>(null);
   const textRef = useRef('');
 
@@ -138,6 +142,7 @@ export const PredictionPanel: React.FC<PredictionPanelProps> = ({ isOpen, onClos
   const displayScore = riskScore ?? 0;
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
       style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
@@ -246,7 +251,7 @@ export const PredictionPanel: React.FC<PredictionPanelProps> = ({ isOpen, onClos
         {/* Generate button */}
         <div className="px-4 py-3 shrink-0">
           <button
-            onClick={handleGenerate}
+            onClick={aiUnlocked ? handleGenerate : () => setShowPaywall(true)}
             className="w-full py-2.5 rounded border font-mono font-bold text-xs uppercase tracking-wider transition-all"
             style={
               streaming
@@ -407,6 +412,14 @@ export const PredictionPanel: React.FC<PredictionPanelProps> = ({ isOpen, onClos
         </div>
       </div>
     </div>
+
+    {showPaywall && (
+      <PaywallModal
+        onClose={() => setShowPaywall(false)}
+        onUnlocked={() => setShowPaywall(false)}
+      />
+    )}
+  </>
   );
 };
 

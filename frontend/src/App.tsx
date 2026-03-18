@@ -1,4 +1,5 @@
 import React, { useEffect, lazy, Suspense } from 'react';
+import { usePurchaseStore } from './stores/purchaseStore';
 import { TopBar } from './components/Layout/TopBar';
 import { SimulationMap } from './components/Map/SimulationMap';
 import { StrikeConfigPanel } from './components/Controls/StrikeConfigPanel';
@@ -45,6 +46,8 @@ const App: React.FC = () => {
     setWindSpeed,
     setPopulationDensity,
   } = useSimulationStore();
+
+  useEffect(() => { usePurchaseStore.getState().initRevenueCat(); }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
